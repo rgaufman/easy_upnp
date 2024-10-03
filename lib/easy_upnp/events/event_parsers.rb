@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'nokogiri'
 
 module EasyUpnp
@@ -8,7 +10,7 @@ module EasyUpnp
         [n.name.to_sym, n.text]
       end
 
-      Hash[prop_changes]
+      prop_changes.to_h
     end
   end
 

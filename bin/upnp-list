@@ -1,53 +1,58 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
 
 require 'optparse'
 require 'easy_upnp'
 
 DEFAULT_ST = 'ssdp:all'
 
-search_option_keys = [:timeout, :repeat_queries]
-options = {search_target: DEFAULT_ST}
+search_option_keys = %i[timeout repeat_queries]
+options = { search_target: DEFAULT_ST }
 
 OptionParser.new do |opts|
-  opts.banner = "Usage: upnp-list [options]"
+  opts.banner = 'Usage: upnp-list [options]'
 
-  opts.on("-t", "--timeout [SECONDS]") do |v|
+  opts.on('-t', '--timeout [SECONDS]') do |v|
     options[:timeout] = v.to_i
   end
 
-  opts.on("-r", "--repeat-queries [N]") do |v|
+  opts.on('-r', '--repeat-queries [N]') do |v|
     options[:repeat_queries] = v.to_i
   end
 
-  opts.on("-s", "--search-target [STRING]", String,
-          "Specify UPnP search target (default \"ssdp:all\")") do |v|
+  opts.on('-s', '--search-target [STRING]', String,
+          'Specify UPnP search target (default "ssdp:all")') do |v|
     options[:search_target] = v
   end
 end.parse!
 
-puts "Starting SSDP search..."
+puts 'Starting SSDP search...'
 
-search_options = options.select { |k, v| search_option_keys.include?(k) }
+search_options = options.select { |k, _v| search_option_keys.include?(k) }
 devices = EasyUpnp::SsdpSearcher.new(search_options).search(options[:search_target])
 
 if devices.any?
   puts "Found #{devices.count} devices:"
-  printf "%30s %45s %s\n", "Name", "UUID", "Services"
+  printf "%30s %45s %s\n", 'Name', 'UUID', 'Services'
 
   devices.each do |device|
-    name = device.description[:friendlyName] rescue '*** Error fetching name ***'
+    name = begin
+      device.description[:friendlyName]
+    rescue StandardError
+      '*** Error fetching name ***'
+    end
 
-    printf "%30s %45s ", name, device.uuid
+    printf '%30s %45s ', name, device.uuid
 
     services = device.all_services
     if services.any?
       printf "%s\n", services.first
 
-      services[1..-1].each do |s|
-        printf "%30s %45s %s\n", "", "", s
+      services[1..].each do |s|
+        printf "%30s %45s %s\n", '', '', s
       end
     else
-      puts "( None )"
+      puts '( None )'
     end
 
     puts

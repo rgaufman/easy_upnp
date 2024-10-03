@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'socket'
 require 'ipaddr'
 require 'timeout'
@@ -11,20 +13,20 @@ module EasyUpnp
     MULTICAST_PORT = 1900
 
     DEFAULT_OPTIONS = {
-        # Number of seconds to wait for responses
-        :timeout => 2,
+      # Number of seconds to wait for responses
+      timeout: 2,
 
         # Part of the SSDP protocol. Servers should delay a random amount of time between 0 and N
         # seconds before sending the response.
-        :mx => 1,
+        mx: 1,
 
         # Sometimes recommended to send repeat M-SEARCH queries. Control that here.
-        :repeat_queries => 1
-    }
+        repeat_queries: 1
+    }.freeze
 
     def initialize(options = {})
       unsupported_args = options.keys.reject { |x| DEFAULT_OPTIONS[x] }
-      raise RuntimeError.new "Unsupported arguments: #{unsupported_args}" if unsupported_args.any?
+      raise "Unsupported arguments: #{unsupported_args}" if unsupported_args.any?
 
       @options = DEFAULT_OPTIONS.merge options
     end
@@ -46,7 +48,7 @@ module EasyUpnp
 
       # Wait for responses. Timeout after a specified number of seconds
       begin
-        Timeout::timeout(option :timeout) do
+        Timeout.timeout(option(:timeout)) do
           loop do
             raw_messages.push(socket.recv(4196))
           end
@@ -63,37 +65,37 @@ module EasyUpnp
       # Group messages by device they come from (identified by a UUID in the 'USN' header),
       # and create UpnpDevices for them. This wrap the services advertized by the SSDP
       # results.
-      parsed_messages.reject { |x| !x[:usn] }.group_by { |x| x[:usn].split('::').first }.map do |k, v|
+      parsed_messages.select { |x| x[:usn] }.group_by { |x| x[:usn].split('::').first }.map do |k, v|
         UpnpDevice.from_ssdp_messages(k, v)
       end
     end
 
     def construct_msearch_packet(urn)
-      <<-MSEARCH
-M-SEARCH * HTTP/1.1\r
-HOST: #{MULTICAST_ADDR}:#{MULTICAST_PORT}\r
-MAN: "ssdp:discover"\r
-MX: #{option :mx}\r
-ST: #{urn}\r
-\r
+      <<~MSEARCH
+        M-SEARCH * HTTP/1.1\r
+        HOST: #{MULTICAST_ADDR}:#{MULTICAST_PORT}\r
+        MAN: "ssdp:discover"\r
+        MX: #{option :mx}\r
+        ST: #{urn}\r
+        \r
       MSEARCH
     end
 
     def parse_message(message)
       lines = message.split "\r\n"
       headers = lines.map do |line|
-        if !(match = line.match(/([^:]+):\s?(.*)/i)).nil?
-          header, value = match.captures
-          key = header.
-              downcase.
-              gsub('-', '_').
-              to_sym
+        next if (match = line.match(/([^:]+):\s?(.*)/i)).nil?
 
-          [key, value]
-        end
+        header, value = match.captures
+        key = header
+              .downcase
+              .gsub('-', '_')
+              .to_sym
+
+        [key, value]
       end
 
-      Hash[headers.reject(&:nil?)]
+      headers.compact.to_h
     end
 
     private

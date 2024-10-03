@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'easy_upnp/options_base'
 
 require 'easy_upnp/ssdp_searcher'

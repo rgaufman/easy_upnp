@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'uri'
 require 'nori'
 require 'open-uri'
@@ -16,19 +18,19 @@ module EasyUpnp
 
     def self.from_ssdp_messages(uuid, messages)
       service_definitions = messages.
-          # Filter out messages that aren't service definitions. These include
-          # the root device and the root UUID
-          reject { |message| not message[:st].include? ':service:' }.
-          # Distinct by ST header -- might have repeats if we sent multiple
-          # M-SEARCH packets
-          group_by { |message| message[:st] }.
-          map { |_, matching_messages| matching_messages.first }.
-          map do |message|
-            {
-                :location => message[:location],
-                :st => message[:st]
-            }
-          end
+                            # Filter out messages that aren't service definitions. These include
+                            # the root device and the root UUID
+                            select { |message| message[:st].include? ':service:' }.
+                            # Distinct by ST header -- might have repeats if we sent multiple
+                            # M-SEARCH packets
+                            group_by { |message| message[:st] }
+                                    .map { |_, matching_messages| matching_messages.first }
+                                    .map do |message|
+        {
+          location: message[:location],
+            st: message[:st]
+        }
+      end
 
       UpnpDevice.new(uuid, service_definitions)
     end
@@ -51,34 +53,40 @@ module EasyUpnp
       @service_definitions.map { |x| x[:st] }
     end
 
-    def has_service?(urn)
+    def service?(urn)
       !service_definition(urn).nil?
     end
 
-    def service(urn, options = {}, &block)
+    def service(urn, options = {}, &)
       definition = service_definition(urn)
 
-      if !definition.nil?
-        DeviceControlPoint.from_service_definition(definition, options, &block)
-      end
+      return if definition.nil?
+
+      DeviceControlPoint.from_service_definition(definition, options, &)
     end
 
     def service_definition(urn)
-      @service_definitions.
-          reject { |s| s[:st] != urn }.
-          first
+      @service_definitions
+        .select { |s| s[:st] == urn }
+        .first
     end
 
     private
 
     # @return [Hash]
     def fetch_description
-      if all_services.empty?
-        raise RuntimeError, "Couldn't resolve device description because no endpoints are defined"
-      end
+      raise "Couldn't resolve device description because no endpoints are defined" if all_services.empty?
 
       location = service_definition(all_services.first)[:location]
-      Nori.new.parse(open(location) { |f| f.read })['root']['device']
+      response = Faraday.get(location)
+      unless response.success?
+        raise "Failed to retrieve data from #{location}: #{response.status} - #{response.reason_phrase}"
+      end
+
+      Nori.new.parse(response.body)['root']['device']
+    rescue StandardError => e
+      logger.error("Error fetching device description: #{e.message}")
+      nil
     end
   end
 end

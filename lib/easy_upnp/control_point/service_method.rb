@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module EasyUpnp
   class ServiceMethod
     attr_reader :name, :in_args, :out_args
@@ -15,8 +17,8 @@ module EasyUpnp
       present_args = args_hash.keys.map(&:to_sym)
 
       if (unsupported_args = (present_args - in_args)).any?
-        raise ArgumentError, "Unsupported arguments: #{unsupported_args.join(', ')}." <<
-                             " Supported args: #{in_args.join(', ')}"
+        raise ArgumentError, "Unsupported arguments: #{unsupported_args.join(', ')}. " \
+                             "Supported args: #{in_args.join(', ')}"
       end
 
       args_hash.each do |arg, val|
@@ -36,9 +38,7 @@ module EasyUpnp
       # Response is usually wrapped in <#{ActionName}Response></>. For example:
       # <BrowseResponse>...</BrowseResponse>. Extract the body since consumers
       # won't care about wrapper stuff.
-      if response.body.keys.count > 1
-        raise RuntimeError, "Unexpected keys in response body: #{response.body.keys}"
-      end
+      raise "Unexpected keys in response body: #{response.body.keys}" if response.body.keys.count > 1
 
       result = response.body.first[1]
       output = {}
@@ -61,7 +61,7 @@ module EasyUpnp
 
       arg_references = {}
 
-      extract_args = ->(v) do
+      extract_args = lambda do |v|
         arg_name = v.xpath('name').text.to_sym
         ref = v.xpath('relatedStateVariable').text.to_sym
 
@@ -79,12 +79,11 @@ module EasyUpnp
 
     # This is included in ActiveSupport, but don't want to pull that in for just this method...
     def underscore(s)
-      s.gsub(/::/, '/').
-          gsub(/([A-Z]+)([A-Z][a-z])/, '\1_\2').
-          gsub(/([a-z\d])([A-Z])/, '\1_\2').
-          tr("-", "_").
-          downcase
+      s.gsub('::', '/')
+       .gsub(/([A-Z]+)([A-Z][a-z])/, '\1_\2')
+       .gsub(/([a-z\d])([A-Z])/, '\1_\2')
+       .tr('-', '_')
+       .downcase
     end
-
   end
 end

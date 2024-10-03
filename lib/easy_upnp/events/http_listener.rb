@@ -1,5 +1,6 @@
+# frozen_string_literal: true
+
 require 'webrick'
-require 'thread'
 
 require 'easy_upnp/events/event_parsers'
 
@@ -16,26 +17,26 @@ module EasyUpnp
         bind_address: '0.0.0.0',
 
         # By default, event callback just prints the changed state vars
-        callback: ->(state_vars) {
+        callback: lambda { |state_vars|
           puts state_vars.inspect
         },
 
         # Parses event bodies.  By default parse the XML into a hash.  Use
         # EasyUpnp::NoOpEventParser to skip parsing
         event_parser: EasyUpnp::DefaultEventParser
-      }
+      }.freeze
 
       def initialize(options)
         super(options, DEFAULTS)
       end
     end
 
-    def initialize(o = {}, &block)
-      @options = Options.new(o, &block)
+    def initialize(o = {}, &)
+      @options = Options.new(o, &)
     end
 
     def listen
-      if !@listen_thread
+      unless @listen_thread
         @server = WEBrick::HTTPServer.new(
           Port: @options.listen_port,
           AccessLog: [],
@@ -52,18 +53,16 @@ module EasyUpnp
     end
 
     def url
-      if !@listen_thread or !@server
-        raise RuntimeError, 'Server not started'
-      end
+      raise 'Server not started' if !@listen_thread || !@server
 
-      addr = Socket.ip_address_list.detect{|intf| intf.ipv4_private?}
+      addr = Socket.ip_address_list.detect(&:ipv4_private?)
       port = @server.config[:Port]
 
       "http://#{addr.ip_address}:#{port}"
     end
 
     def shutdown
-      raise RuntimeError, "Illegal state: server is not started" if @listen_thread.nil?
+      raise 'Illegal state: server is not started' if @listen_thread.nil?
 
       @listen_thread.kill
       @listen_thread = nil
@@ -76,7 +75,7 @@ module EasyUpnp
       @parser = parser
     end
 
-    def do_NOTIFY(request, response)
+    def do_NOTIFY(request, _response)
       @callback.call(@parser.parse(request.body))
     end
   end

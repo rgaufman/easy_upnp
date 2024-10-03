@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module EasyUpnp
   class Options < EasyUpnp::OptionsBase
     DEFAULTS = {
@@ -20,17 +22,17 @@ module EasyUpnp
       logger: Logger.new($stdout),
       log_level: Logger::WARN,
 
-      on_shutdown: -> { }
-    }
+      on_shutdown: -> {}
+    }.freeze
 
-    def initialize(o, &block)
-      super(o, DEFAULTS, &block)
+    def initialize(o, &)
+      super(o, DEFAULTS, &)
     end
   end
 
   class SubscriptionManager
-    def initialize(event_client, callback_url, options = {}, &block)
-      @options = Options.new(options, &block)
+    def initialize(event_client, callback_url, options = {}, &)
+      @options = Options.new(options, &)
       @event_client = event_client
       @callback_url = callback_url
       @sid = @options.existing_sid
@@ -52,12 +54,12 @@ module EasyUpnp
 
     def subscribe
       @subscription_thread ||= Thread.new do
-        logger.info "Starting subscription thread..."
+        logger.info 'Starting subscription thread...'
 
         resubscribe_time = start_or_renew_subscription
 
         begin
-          while true
+          loop do
             if Time.now >= resubscribe_time
               resubscribe_time = renew_subscription
             else
@@ -69,16 +71,15 @@ module EasyUpnp
           raise e
         end
 
-        logger.info "Ending subscription"
+        logger.info 'Ending subscription'
       end
 
       true
     end
 
     def unsubscribe
-      if @subscription_thread.nil?
-        raise RuntimeError, "Illegal state: no active subscription"
-      end
+      raise 'Illegal state: no active subscription' if @subscription_thread.nil?
+
       @subscription_thread.kill
       @subscription_thread = nil
 
@@ -97,46 +98,42 @@ module EasyUpnp
     private
 
     def start_or_renew_subscription
-      if !@sid
-        start_subscription
-      else
+      if @sid
         renew_subscription
+      else
+        start_subscription
       end
     end
 
     def renew_subscription
-      begin
-        logger.info "Refreshing subscription for: #{@sid}"
-        response = @event_client.resubscribe(
-          @sid,
-          timeout: @options.requested_timeout
-        )
-        logger.info "Got resubscribe response: #{response.inspect}"
-        @resubscribe_time = calculate_refresh_time(response)
-      rescue EasyUpnp::EventClient::SubscriptionError => e
-        logger.error "Error renewing subscription; trying to start a new one"
-        start_subscription
-      rescue Exception => e
-        logger.error "Unrecoverable exception renewing subscription: #{e}"
-        raise e
-      end
+      logger.info "Refreshing subscription for: #{@sid}"
+      response = @event_client.resubscribe(
+        @sid,
+        timeout: @options.requested_timeout
+      )
+      logger.info "Got resubscribe response: #{response.inspect}"
+      @resubscribe_time = calculate_refresh_time(response)
+    rescue EasyUpnp::EventClient::SubscriptionError
+      logger.error 'Error renewing subscription; trying to start a new one'
+      start_subscription
+    rescue Exception => e
+      logger.error "Unrecoverable exception renewing subscription: #{e}"
+      raise e
     end
 
     def start_subscription
-      begin
-        response = @event_client.subscribe(
-          callback_url,
-          timeout: @options.requested_timeout
-        )
+      response = @event_client.subscribe(
+        callback_url,
+        timeout: @options.requested_timeout
+      )
 
-        logger.info "Got subscription response: #{response.inspect}"
+      logger.info "Got subscription response: #{response.inspect}"
 
-        @sid = response.sid
-        @resubscribe_time = calculate_refresh_time(response)
-      rescue Exception => e
-        logger.error "Error subscribing to event: #{e}"
-        raise e
-      end
+      @sid = response.sid
+      @resubscribe_time = calculate_refresh_time(response)
+    rescue Exception => e
+      logger.error "Error subscribing to event: #{e}"
+      raise e
     end
 
     def calculate_refresh_time(response)

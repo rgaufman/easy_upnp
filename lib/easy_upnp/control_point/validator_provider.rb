@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'easy_upnp/control_point/argument_validator'
 
 module EasyUpnp
@@ -17,23 +19,23 @@ module EasyUpnp
       DefaultValidatorProvider.new(validators)
     end
 
-    private
-      class DefaultValidatorProvider
-        def initialize(validators)
-          @validators = validators
-        end
-
-        def validator(arg_ref)
-          validator = @validators[arg_ref.to_sym]
-          raise ArgumentError, "Unknown argument reference: #{arg_ref}" if arg_ref.nil?
-          validator
-        end
+    class DefaultValidatorProvider
+      def initialize(validators)
+        @validators = validators
       end
 
-      class NoOpValidatorProvider
-        def validator(arg_ref)
-          ArgumentValidator.no_op
-        end
+      def validator(arg_ref)
+        validator = @validators[arg_ref.to_sym]
+        raise ArgumentError, "Unknown argument reference: #{arg_ref}" if arg_ref.nil?
+
+        validator
       end
+    end
+
+    class NoOpValidatorProvider
+      def validator(_arg_ref)
+        ArgumentValidator.no_op
+      end
+    end
   end
 end

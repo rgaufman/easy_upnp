@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'net/http'
 
 module EasyUpnp
@@ -17,9 +19,7 @@ module EasyUpnp
 
       response = do_request(req)
 
-      if !response['SID']
-        raise SubscriptionError, "SID header not present in response: #{response.to_hash}"
-      end
+      raise SubscriptionError, "SID header not present in response: #{response.to_hash}" unless response['SID']
 
       SubscribeResponse.new(response)
     end

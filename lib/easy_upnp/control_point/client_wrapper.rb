@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module EasyUpnp
   class ClientWrapper
     def initialize(endpoint,
@@ -12,7 +14,7 @@ module EasyUpnp
       # in Savon 2.11
       options = {
         log: log_enabled,
-        log_level: log_level
+        log_level:
       }
 
       @client = Savon.client(options) do |c|
@@ -20,7 +22,7 @@ module EasyUpnp
         c.namespace urn
 
         # I found this was necessary on some of my UPnP devices (namely, a Sony TV).
-        c.namespaces({:'s:encodingStyle' => "http://schemas.xmlsoap.org/soap/encoding/"})
+        c.namespaces({ 's:encodingStyle': 'http://schemas.xmlsoap.org/soap/encoding/' })
 
         # This makes XML tags be like <ObjectID> instead of <objectID>.
         c.convert_request_keys_to :camelcase
@@ -37,13 +39,13 @@ module EasyUpnp
 
     def call(action_name, args)
       attrs = {
-          soap_action: "#{@urn}##{action_name}",
+        soap_action: "#{@urn}##{action_name}",
           attributes: {
-              :'xmlns:u' => @urn
-          },
+            'xmlns:u': @urn
+          }
       }.merge(@call_options)
 
-      if !@cookies.nil?
+      unless @cookies.nil?
         attrs = attrs.merge(
           cookies: HTTPI::Cookie.new(@cookies)
         )
@@ -51,7 +53,7 @@ module EasyUpnp
 
       advanced_typecasting = @advanced_typecasting
 
-      response = @client.call(action_name, attrs) do
+      @client.call(action_name, attrs) do
         advanced_typecasting advanced_typecasting
         message(args)
       end

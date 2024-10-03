@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'nokogiri'
 require 'open-uri'
 require 'nori'
@@ -22,29 +24,29 @@ module EasyUpnp
         log_level: :error,
         call_options: {},
         cookies: nil
-      }
+      }.freeze
 
-      def initialize(o = {}, &block)
-        super(o, DEFAULTS, &block)
+      def initialize(o = {}, &)
+        super(o, DEFAULTS, &)
       end
     end
 
     class EventConfigOptions < EasyUpnp::OptionsBase
       DEFAULTS = {
-        configure_http_listener: ->(c) { },
-        configure_subscription_manager: ->(c) { }
-      }
+        configure_http_listener: ->(c) {},
+        configure_subscription_manager: ->(c) {}
+      }.freeze
 
-      def initialize(&block)
-        super({}, DEFAULTS, &block)
+      def initialize(&)
+        super({}, DEFAULTS, &)
       end
     end
 
-    def initialize(urn, service_endpoint, events_endpoint, definition, options, &block)
+    def initialize(urn, service_endpoint, events_endpoint, definition, options, &)
       @urn = urn
       @service_endpoint = service_endpoint
       @definition = definition
-      @options = Options.new(options, &block)
+      @options = Options.new(options, &)
 
       @events_endpoint = events_endpoint
       @events_client = EasyUpnp::EventClient.new(events_endpoint)
@@ -73,10 +75,10 @@ module EasyUpnp
         define_service_method(method, @client, @validator_provider, @options)
       end
 
-      @event_vars = definition_xml.
-        xpath('//serviceStateTable/stateVariable[@sendEvents = "yes"]/name').
-        map(&:text).
-        map(&:to_sym)
+      @event_vars = definition_xml
+                    .xpath('//serviceStateTable/stateVariable[@sendEvents = "yes"]/name')
+                    .map(&:text)
+                    .map(&:to_sym)
     end
 
     def to_params
@@ -91,15 +93,15 @@ module EasyUpnp
 
     def self.from_params(params)
       DeviceControlPoint.new(
-          params[:urn],
-          params[:service_endpoint],
-          params[:events_endpoint],
-          params[:definition],
-          params[:options]
+        params[:urn],
+        params[:service_endpoint],
+        params[:events_endpoint],
+        params[:definition],
+        params[:options]
       )
     end
 
-    def self.from_service_definition(definition, options, &block)
+    def self.from_service_definition(definition, options, &)
       urn = definition[:st]
       root_uri = definition[:location]
 
@@ -108,26 +110,24 @@ module EasyUpnp
 
       service = xml.xpath("//device/serviceList/service[serviceType=\"#{urn}\"]").first
 
-      if service.nil?
-        raise RuntimeError, "Couldn't find service with urn: #{urn}"
-      else
-        service = Nokogiri::XML(service.to_xml)
-        service_definition_uri = URI.join(root_uri, service.xpath('service/SCPDURL').text).to_s
-        service_definition = open(service_definition_uri) { |f| f.read }
+      raise "Couldn't find service with urn: #{urn}" if service.nil?
 
-        endpoint_url = ->(xpath) do
-          URI.join(root_uri, service.xpath(xpath).text).to_s
-        end
+      service = Nokogiri::XML(service.to_xml)
+      service_definition_uri = URI.join(root_uri, service.xpath('service/SCPDURL').text).to_s
+      service_definition = open(service_definition_uri, &:read)
 
-        DeviceControlPoint.new(
-            urn,
-            endpoint_url.call('service/controlURL'),
-            endpoint_url.call('service/eventSubURL'),
-            service_definition,
-            options,
-            &block
-        )
+      endpoint_url = lambda do |xpath|
+        URI.join(root_uri, service.xpath(xpath).text).to_s
       end
+
+      DeviceControlPoint.new(
+        urn,
+        endpoint_url.call('service/controlURL'),
+        endpoint_url.call('service/eventSubURL'),
+        service_definition,
+        options,
+        &
+      )
     end
 
     def arg_validator(method_ref, arg_name)
@@ -152,16 +152,16 @@ module EasyUpnp
       @service_methods.keys
     end
 
-    def add_event_callback(url, &block)
-      manager = EasyUpnp::SubscriptionManager.new(@events_client, url, &block)
+    def add_event_callback(url, &)
+      manager = EasyUpnp::SubscriptionManager.new(@events_client, url, &)
       manager.subscribe
       manager
     end
 
-    def on_event(callback, &block)
+    def on_event(callback, &)
       raise ArgumentError, 'Must provide block' if callback.nil?
 
-      options = EventConfigOptions.new(&block)
+      options = EventConfigOptions.new(&)
 
       listener = EasyUpnp::HttpListener.new do |c|
         options.configure_http_listener.call(c)
@@ -171,23 +171,23 @@ module EasyUpnp
         # we ignored it.
         user_callback = c.callback
         c.callback do |r|
-          user_callback.call(r) if user_callback
+          user_callback&.call(r)
           callback.call(r)
         end
       end
 
       # exposing the URL as a lambda allows the subscription manager to get a
       # new URL should the server stop and start again on a different port.
-      url = ->() { listener.listen }
+      url = -> { listener.listen }
 
       manager = EasyUpnp::SubscriptionManager.new(@events_client, url) do |c|
         options.configure_subscription_manager.call(c)
 
         user_shutdown = c.on_shutdown
-        c.on_shutdown = ->() do
+        c.on_shutdown = lambda {
           user_shutdown.call if user_shutdown
           listener.shutdown
-        end
+        }
       end
 
       manager.subscribe
@@ -197,9 +197,7 @@ module EasyUpnp
     private
 
     def define_service_method(method, client, validator_provider, options)
-      if !options.validate_arguments
-        validator_provider = EasyUpnp::ValidatorProvider.no_op_provider
-      end
+      validator_provider = EasyUpnp::ValidatorProvider.no_op_provider unless options.validate_arguments
 
       define_singleton_method(method.name) do |args_hash = {}|
         method.call_method(client, args_hash, validator_provider)
